@@ -1,5 +1,5 @@
 {
-  "name": "summerhacks-github-library",
+  "name": "@summerhacksca/github-library",
   "version": "1.0.0",
   "description": "Hackathon GitHub Repository Validator",
   "main": "dist/index.js",
