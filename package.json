@@ -1,0 +1,31 @@
+{
+  "name": "summerhacks-github-library",
+  "version": "1.0.0",
+  "description": "��#\u0000 \u0000G\u0000i\u0000t\u0000h\u0000u\u0000b\u0000-\u0000l\u0000i\u0000b\u0000r\u0000a\u0000r\u0000y\u0000\r\u0000 \u0000",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/summerhacksca/Github-library.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/summerhacksca/Github-library/issues"
+  },
+  "homepage": "https://github.com/summerhacksca/Github-library#readme",
+  "dependencies": {
+    "@octokit/rest": "^22.0.1"
+  },
+  "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "@types/node": "^25.5.0",
+    "jest": "^30.3.0",
+    "ts-jest": "^29.4.6",
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3"
+  }
+}
