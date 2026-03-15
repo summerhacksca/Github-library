@@ -1,65 +1,82 @@
-# Hackathon GitHub Repository Validator
+# @summerhacksca/github-library
 
-A TypeScript npm package built for hackathon organizers to seamlessly validate participant GitHub repository submissions.
-
-This package takes a GitHub repository URL and a configuration object (e.g., maximum team size, valid time window) and queries the GitHub API to return a validation status along with a list of genuine human contributors. **No cloning required.**
-
-## Features
-- **No-Clone Validation**: Uses `@octokit/rest` to fetch repository commit data directly from the GitHub API.
-- **Smart Bot Filtering**: Automatically strips out AI bots (Claude, Copilot, Sweep), dependency bots (Dependabot, Renovate), and CI accounts (GitHub Actions).
-- **Time Window Enforcement**: Only counts commits made within the official hackathon start and end dates.
-- **Team Size Validation**: Ensures the total number of unique human contributors does not exceed the allowed maximum.
+A TypeScript library for hackathon organizers to validate participant GitHub repository submissions without cloning any code. Uses the GitHub REST API to check for rule violations including forks, out-of-window commits, team size limits, and README plagiarism detection.
 
 ## Installation
-
-Assuming this package is published to npm or GitHub Packages under your organization:
 
 ```bash
 npm install @summerhacksca/github-library
 ```
 
-## Usage Example
-
-In your main platform repository (where organizers paste the links):
+## Quick Start
 
 ```typescript
 import { validateRepo, ValidatorConfig } from '@summerhacksca/github-library';
 
-async function checkSubmission() {
-  const config: ValidatorConfig = {
-    // Provide a token to avoid GitHub API rate limits
-    githubToken: process.env.GITHUB_TOKEN, 
-    
-    // Define the exact bounds of the hackathon
-    timeWindow: {
-      start: '2026-03-12T08:00:00Z',
-      end: '2026-03-15T18:00:00Z'
-    },
-    
-    // Max humans allowed
-    maxTeamSize: 4 
-  };
+const config: ValidatorConfig = {
+  githubToken: process.env.GITHUB_TOKEN,
+  timeWindow: {
+    start: '2026-03-12T08:00:00Z',
+    end: '2026-03-15T18:00:00Z',
+  },
+  maxTeamSize: 4,
+};
 
-  const repoUrl = 'https://github.com/some-participant/awesome-hack';
-  
-  const result = await validateRepo(repoUrl, config);
+const result = await validateRepo('https://github.com/participant/their-hack', config);
 
-  if (result.isValid) {
-    console.log('Repository is valid!');
-    console.log('Human Contributors:', result.humanContributors);
-  } else {
-    console.error('Validation Failed:');
-    result.validationErrors.forEach(err => console.error(`- ${err}`));
-  }
+if (result.isValid) {
+  console.log('Valid! Contributors:', result.humanContributors);
+} else {
+  console.log('Violations:', result.violations);
 }
-
-checkSubmission();
 ```
 
-## How It Works Under the Hood
-1. Parses the provided URL to extract the `owner` and `repo` names.
-2. Pings the GitHub API (`GET /repos/{owner}/{repo}`) to ensure the repository is public and accessible.
-3. Fetches the commit history filtered exactly between the `timeWindow.start` and `timeWindow.end` dates.
-4. Aggregates all unique commit authors.
-5. Runs the aggregation through the `bot-filter` to remove known non-human accounts based on names, suffixes (`[bot]`), and API node types (`Bot`).
-6. Verifies that the resulting human array length is `<` or `=` to `maxTeamSize`.
+## Configuration Reference
+
+`ValidatorConfig`
+
+- `githubToken` (optional string) — GitHub personal access token. Not required for public repos but strongly recommended. Unauthenticated requests are limited to 60/hour for the REST API and 10/minute for the search API. Authenticated requests get 5,000/hour and 30/minute respectively.
+- `timeWindow.start` (Date or ISO string) — Hackathon start time. Commits before this are a violation.
+- `timeWindow.end` (Date or ISO string) — Hackathon deadline. Commits after this are a violation.
+- `maxTeamSize` (number) — Maximum allowed human contributors. Includes co-authors from `Co-authored-by` commit trailers.
+- `readmePlagiarism` (optional object) — Opt-in README plagiarism detection.
+  - `enabled` (boolean) — Set to `true` to enable.
+  - `matchThreshold` (number) — How many significant README lines found in other GitHub repos triggers a violation.
+
+## Response Reference
+
+`ValidationResult`
+
+- `isValid` (boolean) — `true` when `violations` is empty.
+- `humanContributors` (string array) — GitHub usernames of detected human contributors. Bot accounts are filtered out.
+- `violations` (string array) — List of rule violations found. Empty means the repo passed.
+
+## Possible Violations
+
+- `"Invalid GitHub URL provided."`
+- `"Repository is a fork"`
+- `"Commits exist before hackathon start"`
+- `"Commits exist after hackathon deadline"`
+- `"Team size exceeded: found {n}, max is {maxTeamSize}"`
+- `"README plagiarism detected: {n} significant lines found in other repositories"`
+- `"Repository not found or is private."`
+- `"GitHub API rate limit exceeded. Please provide a githubToken."`
+- `"Failed to fetch repository data: {error message}"`
+
+## Bot Filtering
+
+The library automatically filters bot accounts from contributor counts using four detection layers: GitHub API account type, a hardcoded list of known bots (dependabot, github-actions, renovate, snyk-bot, etc.), regex patterns on usernames, and keyword matching for AI tools (claude, copilot, gpt).
+
+## Rate Limits
+
+The library uses `@octokit/plugin-throttling` to automatically retry on rate limit errors with up to 2 retries. Passing a `githubToken` is strongly recommended if you're validating multiple repos or using the README plagiarism feature, since code search has a tight rate limit of 10 requests/minute unauthenticated vs 30 authenticated.
+
+## Co-authored Commits
+
+The library parses `Co-authored-by` trailers in commit messages. Co-authors are included in `humanContributors` and count toward `maxTeamSize`. For GitHub noreply emails, the username is extracted automatically. Non-GitHub emails are used as-is.
+
+## Limitations
+
+- Git history can be rewritten (force push, rebase) to hide pre-hackathon work. This library is a first-pass filter, not a security tool.
+- README plagiarism relies on GitHub code search which only indexes public repos and files under a certain size.
+- Co-authors with non-GitHub emails appear as email addresses rather than usernames in `humanContributors`.
