@@ -2,6 +2,7 @@ import { Octokit } from '@octokit/rest';
 import { ValidatorConfig, ValidationResult } from './types';
 import { filterBots, Contributor } from './bot-filter';
 import { fetchReadme, extractSignificantLines, checkReadmePlagiarism } from './readme-checker';
+import { parseCoAuthors } from './co-author-parser';
 
 function parseGithubUrl(url: string): { owner: string; repo: string } | null {
   try {
@@ -88,6 +89,11 @@ export async function validateRepo(repoUrl: string, config: ValidatorConfig): Pr
           login: commitItem.author.login,
           type: commitItem.author.type
         });
+      }
+      for (const identifier of parseCoAuthors(commitItem.commit.message ?? '')) {
+        if (!committersMap.has(identifier)) {
+          committersMap.set(identifier, { login: identifier, type: 'User' });
+        }
       }
     }
 
