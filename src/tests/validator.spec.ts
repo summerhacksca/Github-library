@@ -185,4 +185,76 @@ describe('validator', () => {
     expect(result.isValid).toBe(true);
     expect(result.violations).toHaveLength(0);
   });
+
+  it('should count co-authors toward team size', async () => {
+    mockGetRepo.mockResolvedValueOnce({ data: { fork: false } });
+    const commits = [{
+      commit: {
+        author: { date: '2026-03-13T10:00:00Z' },
+        message: 'feat: add login\n\nCo-authored-by: dev-two <dev-two@users.noreply.github.com>\nCo-authored-by: dev-three <dev-three@users.noreply.github.com>'
+      },
+      author: { login: 'dev-one', type: 'User' }
+    }];
+    mockListCommits.mockResolvedValueOnce({ data: commits }); // all commits
+    mockListCommits.mockResolvedValueOnce({ data: commits }); // windowed commits
+
+    const config: ValidatorConfig = {
+      timeWindow: { start: '2026-03-12T08:00:00Z', end: '2026-03-15T18:00:00Z' },
+      maxTeamSize: 2
+    };
+    const result = await validateRepo('https://github.com/owner/repo', config);
+
+    expect(result.isValid).toBe(false);
+    expect(result.violations.some(v => v.includes('Team size exceeded'))).toBe(true);
+    expect(result.humanContributors).toContain('dev-one');
+    expect(result.humanContributors).toContain('dev-two');
+    expect(result.humanContributors).toContain('dev-three');
+  });
+
+  it('should include co-authors in humanContributors without exceeding team size', async () => {
+    mockGetRepo.mockResolvedValueOnce({ data: { fork: false } });
+    const commits = [{
+      commit: {
+        author: { date: '2026-03-13T10:00:00Z' },
+        message: 'feat: add login\n\nCo-authored-by: dev-two <dev-two@users.noreply.github.com>\nCo-authored-by: dev-three <dev-three@users.noreply.github.com>'
+      },
+      author: { login: 'dev-one', type: 'User' }
+    }];
+    mockListCommits.mockResolvedValueOnce({ data: commits }); // all commits
+    mockListCommits.mockResolvedValueOnce({ data: commits }); // windowed commits
+
+    const config: ValidatorConfig = {
+      timeWindow: { start: '2026-03-12T08:00:00Z', end: '2026-03-15T18:00:00Z' },
+      maxTeamSize: 3
+    };
+    const result = await validateRepo('https://github.com/owner/repo', config);
+
+    expect(result.isValid).toBe(true);
+    expect(result.humanContributors).toContain('dev-one');
+    expect(result.humanContributors).toContain('dev-two');
+    expect(result.humanContributors).toContain('dev-three');
+    expect(result.violations).toHaveLength(0);
+  });
+
+  it('should filter out bot co-authors', async () => {
+    mockGetRepo.mockResolvedValueOnce({ data: { fork: false } });
+    const commits = [{
+      commit: {
+        author: { date: '2026-03-13T10:00:00Z' },
+        message: 'chore: update deps\n\nCo-authored-by: dependabot[bot] <dependabot[bot]@users.noreply.github.com>'
+      },
+      author: { login: 'dev-one', type: 'User' }
+    }];
+    mockListCommits.mockResolvedValueOnce({ data: commits }); // all commits
+    mockListCommits.mockResolvedValueOnce({ data: commits }); // windowed commits
+
+    const config: ValidatorConfig = {
+      timeWindow: { start: '2026-03-12T08:00:00Z', end: '2026-03-15T18:00:00Z' },
+      maxTeamSize: 4
+    };
+    const result = await validateRepo('https://github.com/owner/repo', config);
+
+    expect(result.isValid).toBe(true);
+    expect(result.humanContributors).toEqual(['dev-one']);
+  });
 });

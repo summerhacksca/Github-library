@@ -26,6 +26,7 @@
   },
   "homepage": "https://github.com/summerhacksca/Github-library#readme",
   "dependencies": {
+    "@octokit/plugin-throttling": "^11.0.3",
     "@octokit/rest": "^19.0.13"
   },
   "devDependencies": {

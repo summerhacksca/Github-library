@@ -1,8 +1,10 @@
 import { Octokit } from '@octokit/rest';
+import { throttling } from '@octokit/plugin-throttling';
 import { ValidatorConfig, ValidationResult } from './types';
 import { filterBots, Contributor } from './bot-filter';
 import { fetchReadme, extractSignificantLines, checkReadmePlagiarism } from './readme-checker';
 import { parseCoAuthors } from './co-author-parser';
+
 
 function parseGithubUrl(url: string): { owner: string; repo: string } | null {
   try {
@@ -31,8 +33,23 @@ export async function validateRepo(repoUrl: string, config: ValidatorConfig): Pr
 
   const { owner, repo } = parsed;
 
-  const octokit = new Octokit({
+  const ThrottledOctokit = (Octokit as any).plugin?.(throttling as any) ?? Octokit;
+  const octokit = new ThrottledOctokit({
     auth: config.githubToken,
+    throttle: {
+      onRateLimit: (retryAfter: number, options: any, octokit: any, retryCount: number) => {
+        if (retryCount < 2) {
+          return true;
+        }
+        return false;
+      },
+      onSecondaryRateLimit: (retryAfter: number, options: any, octokit: any, retryCount: number) => {
+        if (retryCount < 2) {
+          return true;
+        }
+        return false;
+      },
+    },
   });
 
   try {
@@ -54,7 +71,7 @@ export async function validateRepo(repoUrl: string, config: ValidatorConfig): Pr
       per_page: 100
     });
 
-    const hasEarlyCommit = allCommitsResponse.data.some((commitItem) => {
+    const hasEarlyCommit = allCommitsResponse.data.some((commitItem: any) => {
       if (!commitItem.commit.author?.date) return false;
       return new Date(commitItem.commit.author.date) < hackathonStart;
     });
@@ -63,7 +80,7 @@ export async function validateRepo(repoUrl: string, config: ValidatorConfig): Pr
       violations.push('Commits exist before hackathon start');
     }
 
-    const hasLateCommit = allCommitsResponse.data.some((commitItem) => {
+    const hasLateCommit = allCommitsResponse.data.some((commitItem: any) => {
       if (!commitItem.commit.author?.date) return false;
       return new Date(commitItem.commit.author.date) > hackathonEnd;
     });
